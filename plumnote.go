@@ -113,13 +113,13 @@ func saveNotes(path string, notes map[uint32]Note) error {
 
 func removeNote(args []string, path string) error {
 	if len(args) < 2 {
-		return errors.New("usage: plumnote remove --id <id>")
+		return errors.New("usage: plumnote r[emove] --id <id>")
 	}
 
 	var id uint32
 	var err error
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--id" && i+1 < len(args) {
+		if args[i] == "-i" || args[i] == "--id" && i+1 < len(args) {
 			idconv, err := strconv.Atoi(args[i+1])
 			id = uint32(idconv)
 			if err != nil {
@@ -145,7 +145,7 @@ func removeNote(args []string, path string) error {
 
 func addNote(args []string, path string) error {
 	if len(args) < 3 {
-		return errors.New("usage: plumnote add --type <type> [--tags <tags>] \"note text\"")
+		return errors.New("usage: plumnote a[dd] --kind <kind> [--tags <tags>] \"note text\"")
 	}
 
 	var noteType string
@@ -153,10 +153,10 @@ func addNote(args []string, path string) error {
 	var text string
 
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--type" && i+1 < len(args) {
+		if args[i] == "-k" || args[i] == "--kind" && i+1 < len(args) {
 			noteType = args[i+1]
 			i++
-		} else if args[i] == "--tags" && i+1 < len(args) {
+		} else if args[i] == "-t" || args[i] == "--tags" && i+1 < len(args) {
 			tags = strings.Split(args[i+1], ",")
 			i++
 		} else if !strings.HasPrefix(args[i], "--") {
@@ -165,7 +165,7 @@ func addNote(args []string, path string) error {
 	}
 
 	if noteType == "" || text == "" {
-		return errors.New("you must provide --type and the note text")
+		return errors.New("you must provide --kind and the note text")
 	}
 
 	notes, err := loadNotes(path)
@@ -190,20 +190,20 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 	var err error
 	filteredNotes := make(map[uint32]Note, len(notes))
 	switch filterMode {
-	case "--id":
+	case "-i", "--id":
 		var id int; if id, err = strconv.Atoi(filter); err != nil { return nil, err }
 		filteredNotes[0] = notes[uint32(id)]
-	case "--type":
+	case "-k", "--kind":
 		filteredNotes = getNotesByType(filter, notes)
-	case "--tags":
+	case "-t", "--tags":
 		tags := strings.Split(filter, ",")
 		filteredNotes = getNotesByTags(tags, notes)
-	case "--exact-tags":
+	case "-e", "--exact-tags":
 		tags := strings.Split(filter, ",")
 		filteredNotes = getNotesByTagsExact(tags, notes)
-	case "--date":
+	case "-d", "--date":
 	default:
-		return nil, errors.New("usage: plumnote list --[id, type, tag] <value>")
+		return nil, errors.New("usage: plumnote l[ist] --[id, type, tag] <value>")
 	}
 
 	return filteredNotes, nil
@@ -212,7 +212,7 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 
 func listNotes(args []string, path string) error {
 	if len(args) == 1 || len(args) > 2 {
-		return errors.New("usage: plumnote list --[id, type, tags] <value>")
+		return errors.New("usage: plumnote l[ist] --[id, type, tags] <value>")
 	}
 
 	notes, err := loadNotes(path)
@@ -269,14 +269,14 @@ func updateNote(args []string, path string) error {
 	updateType := args[1]
 	updateValue := args[2]
 	switch updateType {
-	case "--tags":
+	case "-t", "--tags":
 		note.Tags = strings.Split(updateValue, ",")
-	case "--type":
+	case "-k", "--kind":
 		note.Type = updateValue
-	case "--text":
+	case "-n", "--note":
 		note.Text = updateValue
 	default:
-		return errors.New("usage: plumnote update <id> --[tags, text, type] <value>")
+		return errors.New("usage: plumnote u[pdate] <id> --[tags, note, type] <value>")
 	}
 
 	notes[id] = note
@@ -288,7 +288,7 @@ func updateNote(args []string, path string) error {
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("usage: plumnote <command> [options]")
-		fmt.Println("available commands: list, add, update, remove")
+		fmt.Println("available commands: l[ist], a[dd], u[pdate], r[emove]")
 		os.Exit(1)
 	}
 
@@ -298,13 +298,13 @@ func main() {
 
 	var err error
 	switch command {
-	case "add":
+	case "a", "add":
 		err = addNote(args, notesFile)
-	case "list":
+	case "l", "list":
 		err = listNotes(args, notesFile)
-	case "remove":
+	case "r", "remove":
 		err = removeNote(args, notesFile)
-	case "update":
+	case "u", "update":
 		err = updateNote(args, notesFile)
 	default:
 		fmt.Printf("unknown command: %s\n", command)
