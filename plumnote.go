@@ -285,7 +285,7 @@ func filterNotes(filterMode string, filter string, notes Notes) (Notes, error) {
 
 
 func listNotes(args []string) error {
-	if len(args) == 1 || len(args) > 2 {
+	if len(args) == 1 {
 		return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date, author] <value>")
 	}
 	notes := make(Notes, 0)
@@ -293,11 +293,17 @@ func listNotes(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	if len(args) == 2 {
-		notes, err = filterNotes(args[0], args[1], notes)
-		if err != nil {
-			return err
+	
+	
+	if len(args) >= 2 {
+		for i := 0; i < len(args); i = i+2 {
+			if i+1 >= len(args) {
+				return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date, author] <value>")
+			}
+			notes, err = filterNotes(args[i], args[i+1], notes)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
