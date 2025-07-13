@@ -20,18 +20,17 @@ var SettingsTemplate Settings = map[string]string{
 	"author": "",
 }
 
-
 type Note struct {
-	Id   uint32    `json:"id"`
-	Kind string    `json:"kind"`
-	Tags []string  `json:"tags,omitempty"`
-	Text string    `json:"text"`
-	Date time.Time `json:"date"`
-	Author string `json:"author"`
+	Id     int64     `json:"id"`
+	Kind   string    `json:"kind"`
+	Tags   []string  `json:"tags,omitempty"`
+	Text   string    `json:"text"`
+	Date   time.Time `json:"date"`
+	Author string    `json:"author"`
 }
 
 type Settings map[string]string
-type Notes map[uint32]Note
+type Notes map[int64]Note
 
 func getNotesByTagsExact(tags []string, notes Notes) Notes {
 	filtered := notes
@@ -85,7 +84,7 @@ func getNotesByDate(dates []string, notes Notes) (Notes, error) {
 	if err != nil {
 		return nil, err
 	}
-	endDate = endDate.Add(time.Hour * 23 + time.Minute * 59 + time.Second * 59)
+	endDate = endDate.Add(time.Hour*23 + time.Minute*59 + time.Second*59)
 
 	for _, note := range notes {
 		if startDate.Compare(note.Date.Local()) == -1 && endDate.Compare(note.Date.Local()) == 1 {
@@ -105,17 +104,6 @@ func getNotesByAuthor(author string, notes Notes) Notes {
 	}
 
 	return filtered
-}
-
-func getHighestId(notes Notes) int32 {
-	var highest int32 = -1
-	for _, note := range notes {
-		if int32(note.Id) > highest {
-			highest = int32(note.Id)
-		}
-	}
-
-	return highest
 }
 
 func getNotesFilePath() string {
@@ -143,7 +131,7 @@ func ensureStorageExists(NotesFile string) error {
 	return os.MkdirAll(dir, 0755)
 }
 
-func load[T any](filepath string, alocatedT T) (error) {
+func load[T any](filepath string, alocatedT T) error {
 	if err := ensureStorageExists(filepath); err != nil {
 		return err
 	}
@@ -166,18 +154,17 @@ func save[T any](filepath string, t T) error {
 	return os.WriteFile(filepath, data, 0644)
 }
 
-
 func removeNote(args []string) error {
 	if len(args) < 2 {
 		return errors.New("usage: plumnote r[emove] --id <id>")
 	}
 
-	var id uint32
+	var id int64
 	var err error
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-i" || args[i] == "--id" && i+1 < len(args) {
 			idconv, err := strconv.Atoi(args[i+1])
-			id = uint32(idconv)
+			id = int64(idconv)
 			if err != nil {
 				return err
 			}
@@ -235,14 +222,13 @@ func addNote(args []string) error {
 		return err
 	}
 
-	id := uint32(getHighestId(notes) + 1)
-
+	id := time.Now().Unix()
 	notes[id] = Note{
-		Id:   id,
-		Kind: noteKind,
-		Tags: tags,
-		Text: text,
-		Date: time.Now(),
+		Id:     id,
+		Kind:   noteKind,
+		Tags:   tags,
+		Text:   text,
+		Date:   time.Now(),
 		Author: settings["author"],
 	}
 
@@ -256,8 +242,9 @@ func filterNotes(filterMode string, filter string, notes Notes) (Notes, error) {
 	case "-a", "--author":
 		filteredNotes = getNotesByAuthor(filter, notes)
 	case "-i", "--id":
-		var id int; id, err = strconv.Atoi(filter);
-		filteredNotes[0] = notes[uint32(id)]
+		var id int
+		id, err = strconv.Atoi(filter)
+		filteredNotes[0] = notes[int64(id)]
 	case "-k", "--kind":
 		filteredNotes = getNotesByKind(filter, notes)
 	case "-t", "--tags":
@@ -283,7 +270,6 @@ func filterNotes(filterMode string, filter string, notes Notes) (Notes, error) {
 	return filteredNotes, nil
 }
 
-
 func listNotes(args []string) error {
 	if len(args) == 1 {
 		return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date, author] <value>")
@@ -293,10 +279,9 @@ func listNotes(args []string) error {
 	if err != nil {
 		return err
 	}
-	
-	
+
 	if len(args) >= 2 {
-		for i := 0; i < len(args); i = i+2 {
+		for i := 0; i < len(args); i = i + 2 {
 			if i+1 >= len(args) {
 				return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date, author] <value>")
 			}
@@ -335,10 +320,10 @@ func updateNote(args []string) error {
 		return errors.New("usage: plumnote update <id> --[tags, note, kind] <value>")
 	}
 
-	var id uint32
+	var id int64
 	var err error
 	idconv, err := strconv.Atoi(args[0])
-	id = uint32(idconv)
+	id = int64(idconv)
 	if err != nil {
 		return err
 	}
@@ -375,7 +360,7 @@ func setSettingsValue(args []string) error {
 	}
 
 	fmt.Println(args)
-	
+
 	key := args[0]
 	value := args[1]
 	settings := make(Settings, 0)
@@ -383,7 +368,7 @@ func setSettingsValue(args []string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if _, ok := SettingsTemplate[key]; !ok {
 		return errors.New("usage: plumnote s[ettings] <key> <value>")
 	}
@@ -404,7 +389,7 @@ func main() {
 	args := os.Args[2:]
 	NotesFile = getNotesFilePath()
 	SettingsFile = getSettingsFilePath()
-	
+
 	var err error
 	switch command {
 	case "a", "add":
