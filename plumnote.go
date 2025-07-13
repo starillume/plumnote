@@ -321,7 +321,7 @@ func listNotes(args []string) error {
 			fmt.Printf("tags: [%s]", strings.Join(note.Tags, ", "))
 		}
 		if note.Author != "" {
-			fmt.Printf("| by: %s", note.Author)
+			fmt.Printf(" | by: %s", note.Author)
 		}
 		fmt.Printf("\n'%s'\n", note.Text)
 		fmt.Println()
