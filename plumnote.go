@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+var NotesFile string
+
 type Note struct {
 	Id   uint32    `json:"id"`
 	Kind string    `json:"kind"`
@@ -111,16 +113,16 @@ func getNotesFilePath() string {
 	return filepath.Join(dir, "plumnote", "notes.json")
 }
 
-func ensureStorageExists(path string) error {
-	dir := filepath.Dir(path)
+func ensureStorageExists(NotesFile string) error {
+	dir := filepath.Dir(NotesFile)
 	return os.MkdirAll(dir, 0755)
 }
 
-func loadNotes(path string) (map[uint32]Note, error) {
-	if err := ensureStorageExists(path); err != nil {
+func loadNotes(NotesFile string) (map[uint32]Note, error) {
+	if err := ensureStorageExists(NotesFile); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(NotesFile)
 	if os.IsNotExist(err) {
 		return map[uint32]Note{}, nil
 	}
@@ -132,16 +134,16 @@ func loadNotes(path string) (map[uint32]Note, error) {
 	return notes, err
 }
 
-func saveNotes(path string, notes map[uint32]Note) error {
+func saveNotes(NotesFile string, notes map[uint32]Note) error {
 	data, err := json.MarshalIndent(notes, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(NotesFile, data, 0644)
 }
 
 
-func removeNote(args []string, path string) error {
+func removeNote(args []string) error {
 	if len(args) < 2 {
 		return errors.New("usage: plumnote r[emove] --id <id>")
 	}
@@ -158,7 +160,7 @@ func removeNote(args []string, path string) error {
 		}
 	}
 
-	notes, err := loadNotes(path)
+	notes, err := loadNotes(NotesFile)
 	if err != nil {
 		return err
 	}
@@ -168,12 +170,12 @@ func removeNote(args []string, path string) error {
 			delete(notes, note.Id)
 		}
 	}
-	saveNotes(path, notes)
+	saveNotes(NotesFile, notes)
 
 	return nil
 }
 
-func addNote(args []string, path string) error {
+func addNote(args []string) error {
 	if len(args) < 3 {
 		return errors.New("usage: plumnote a[dd] --kind <kind> [--tags <tags>] \"note text\"")
 	}
@@ -198,7 +200,7 @@ func addNote(args []string, path string) error {
 		return errors.New("you must provide --kind and the note text")
 	}
 
-	notes, err := loadNotes(path)
+	notes, err := loadNotes(NotesFile)
 	if err != nil {
 		return err
 	}
@@ -213,7 +215,7 @@ func addNote(args []string, path string) error {
 		Date: time.Now(),
 	}
 
-	return saveNotes(path, notes)
+	return saveNotes(NotesFile, notes)
 }
 
 func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[uint32]Note, error) {
@@ -249,12 +251,12 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 }
 
 
-func listNotes(args []string, path string) error {
+func listNotes(args []string) error {
 	if len(args) == 1 || len(args) > 2 {
 		return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date] <value>")
 	}
 
-	notes, err := loadNotes(path)
+	notes, err := loadNotes(NotesFile)
 	if err != nil {
 		return err
 	}
@@ -286,7 +288,7 @@ func listNotes(args []string, path string) error {
 	return nil
 }
 
-func updateNote(args []string, path string) error {
+func updateNote(args []string) error {
 	if len(args) < 3 {
 		return errors.New("usage: plumnote update <id> --[tags, note, kind] <value>")
 	}
@@ -299,7 +301,7 @@ func updateNote(args []string, path string) error {
 		return err
 	}
 
-	notes, err := loadNotes(path)
+	notes, err := loadNotes(NotesFile)
 	if err != nil {
 		return err
 	}
@@ -319,7 +321,7 @@ func updateNote(args []string, path string) error {
 	}
 
 	notes[id] = note
-	saveNotes(path, notes)
+	saveNotes(NotesFile, notes)
 
 	return nil
 }
@@ -333,18 +335,18 @@ func main() {
 
 	command := os.Args[1]
 	args := os.Args[2:]
-	notesFile := getNotesFilePath()
+	NotesFile = getNotesFilePath()
 
 	var err error
 	switch command {
 	case "a", "add":
-		err = addNote(args, notesFile)
+		err = addNote(args)
 	case "l", "list":
-		err = listNotes(args, notesFile)
+		err = listNotes(args)
 	case "r", "remove":
-		err = removeNote(args, notesFile)
+		err = removeNote(args)
 	case "u", "update":
-		err = updateNote(args, notesFile)
+		err = updateNote(args)
 	default:
 		fmt.Printf("unknown command: %s\n", command)
 		os.Exit(1)
