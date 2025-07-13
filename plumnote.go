@@ -232,10 +232,10 @@ func listNotes(args []string, path string) error {
 		return nil
 	}
 
-	format := "monday, january 2nd 2006 at 15:04:05 | "
+	format := "Monday, 2 January 2006 at 15:04:05 | "
 	for _, note := range notes {
 		fmt.Printf("id: %d | ", note.Id)
-		fmt.Print(note.Date.Format(format))
+		fmt.Print(strings.ToLower(note.Date.Format(format)))
 		fmt.Printf("kind: %s | ", note.Kind)
 		if len(note.Tags) > 0 {
 			fmt.Printf("tags: [%s]", strings.Join(note.Tags, ", "))
