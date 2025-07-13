@@ -62,6 +62,28 @@ func getNotesByKind(noteKind string, notes map[uint32]Note) map[uint32]Note {
 	return filtered
 }
 
+func getNotesByDate(dates []string, notes map[uint32]Note) (map[uint32]Note, error) {
+	filtered := make(map[uint32]Note, 0)
+	format := "02/01/2006" // DD/MM/YYYY
+	startDate, err := time.ParseInLocation(format, dates[0], time.Local)
+	if err != nil {
+		return nil, err
+	}
+	endDate, err := time.ParseInLocation(format, dates[1], time.Local)
+	if err != nil {
+		return nil, err
+	}
+	endDate = endDate.Add(time.Hour * 23 + time.Minute * 59 + time.Second * 59)
+
+	for _, note := range notes {
+		if startDate.Compare(note.Date.Local()) == -1 && endDate.Compare(note.Date.Local()) == 1 {
+			filtered[note.Id] = note
+		}
+	}
+
+	return filtered, nil
+}
+
 func getHighestId(notes map[uint32]Note) int32 {
 	var highest int32 = -1
 	for _, note := range notes {
@@ -191,7 +213,7 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 	filteredNotes := make(map[uint32]Note, len(notes))
 	switch filterMode {
 	case "-i", "--id":
-		var id int; if id, err = strconv.Atoi(filter); err != nil { return nil, err }
+		var id int; id, err = strconv.Atoi(filter);
 		filteredNotes[0] = notes[uint32(id)]
 	case "-k", "--kind":
 		filteredNotes = getNotesByKind(filter, notes)
@@ -202,8 +224,17 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 		tags := strings.Split(filter, ",")
 		filteredNotes = getNotesByTagsExact(tags, notes)
 	case "-d", "--date":
+		dates := strings.Split(filter, ",")
+		if len(dates) != 2 {
+			return nil, errors.New("usage: plumnote l[ist] --date DD/MM/YYYY,DD/MM/YYYY")
+		}
+		filteredNotes, err = getNotesByDate(dates, notes)
 	default:
-		return nil, errors.New("usage: plumnote l[ist] --[id, kind, tag] <value>")
+		return nil, errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date] <value>")
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	return filteredNotes, nil
@@ -212,7 +243,7 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 
 func listNotes(args []string, path string) error {
 	if len(args) == 1 || len(args) > 2 {
-		return errors.New("usage: plumnote l[ist] --[id, kind, tags] <value>")
+		return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date] <value>")
 	}
 
 	notes, err := loadNotes(path)
@@ -223,7 +254,7 @@ func listNotes(args []string, path string) error {
 	if len(args) == 2 {
 		notes, err = filterNotes(args[0], args[1], notes)
 		if err != nil {
-			return nil
+			return err
 		}
 	}
 
