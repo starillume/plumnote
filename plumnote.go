@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -96,10 +97,17 @@ func getHighestId(notes map[uint32]Note) int32 {
 }
 
 func getNotesFilePath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		panic("could not get config directory")
+	var dir string
+	switch runtime.GOOS {
+	case "windows":
+		dir = os.Getenv("%LOCALAPPDATA%")
+	default:
+		dir = os.Getenv("XDG_DATA_HOME")
+		if dir == "" {
+			panic("could not get xdg data home env, gitgud")
+		}
 	}
+
 	return filepath.Join(dir, "plumnote", "notes.json")
 }
 
