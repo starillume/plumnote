@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,6 +27,7 @@ type Note struct {
 	Tags   []string  `json:"tags,omitempty"`
 	Text   string    `json:"text"`
 	Date   time.Time `json:"date"`
+	Synced bool      `json:"synced"`
 	Author string    `json:"author"`
 }
 
@@ -335,6 +337,16 @@ func updateNote(args []string) error {
 	}
 	note := notes[id]
 
+	settings := make(Settings, 0)
+	err = load(SettingsFile, settings)
+	if err != nil {
+		return err
+	}
+	author := settings["author"]
+	if note.Author != author {
+		return errors.New("can't update other's notes!")
+	}
+
 	updateType := args[1]
 	updateValue := args[2]
 	switch updateType {
@@ -348,6 +360,8 @@ func updateNote(args []string) error {
 		return errors.New("usage: plumnote u[pdate] <id> --[tags, note, kind] <value>")
 	}
 
+	note.Synced = false
+	note.Date = time.Now()
 	notes[id] = note
 	save(NotesFile, notes)
 
@@ -378,10 +392,143 @@ func setSettingsValue(args []string) error {
 	return nil
 }
 
+type NoteToSync struct {
+	Id     int64     `json:"id"`
+	Kind   string    `json:"kind"`
+	Tags   []string  `json:"tags,omitempty"`
+	Text   string    `json:"text"`
+	Date   time.Time `json:"date"`
+	Author string    `json:"author"`
+}
+
+func notesReceiveToSync(nts []NoteToSync) error {
+	notes := make(Notes, 0)
+	err := load(NotesFile, notes)
+	if err != nil {
+		return err
+	}
+
+	for _, ns := range nts {
+		note := Note{
+			Id:     ns.Id,
+			Kind:   ns.Kind,
+			Tags:   ns.Tags,
+			Text:   ns.Text,
+			Synced: true,
+			Date:   ns.Date,
+			Author: ns.Author,
+		}
+
+		notes[ns.Id] = note
+	}
+
+	save(NotesFile, notes)
+
+	return nil
+}
+
+func notesToSync() (string, error) {
+	notes := make(Notes, 0)
+	err := load(NotesFile, notes)
+	if err != nil {
+		return "", err
+	}
+
+	toSync := make([]NoteToSync, 0)
+	for _, n := range notes {
+		if !n.Synced {
+			ns := NoteToSync{
+				Kind:   n.Kind,
+				Tags:   n.Tags,
+				Text:   n.Text,
+				Date:   n.Date,
+				Author: n.Author,
+			}
+			toSync = append(toSync, ns)
+			n.Synced = true
+			notes[n.Id] = n
+		}
+	}
+
+	toSyncJson, err := json.MarshalIndent(toSync, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	save(NotesFile, notes)
+
+	return string(toSyncJson), nil
+}
+
+func syncHandlerFunc(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(405)
+		fmt.Fprintf(w, "method not allowed")
+		return
+	}
+
+	if r.ContentLength == -1 {
+		w.WriteHeader(400)
+		fmt.Fprintf(w, "ta errado ai fio")
+		return
+	}
+
+	if r.ContentLength > 1000000000 { // 1gb
+		w.WriteHeader(400)
+		fmt.Fprintf(w, "pode não")
+		return
+	}
+
+	body := make([]byte, r.ContentLength)
+
+	r.Body.Read(body)
+
+	var notes []NoteToSync
+	if err := json.Unmarshal(body, &notes); err != nil {
+		w.WriteHeader(400)
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	if err := notesReceiveToSync(notes); err != nil {
+		w.WriteHeader(400)
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	notesToSend, err := notesToSync()
+	if err != nil {
+		w.WriteHeader(500)
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	fmt.Fprintf(w, notesToSend)
+}
+
+func startDaemon(args []string) error {
+	if len(args) > 1 {
+		return errors.New("usage: plumnote d[sync] [port]")
+	}
+
+	port := 8080
+	if len(args) == 1 {
+		var err error
+		port, err = strconv.Atoi(args[0])
+		if err != nil {
+			return err
+		}
+	}
+
+	http.HandleFunc("/sync", syncHandlerFunc)
+
+	return http.ListenAndServe(":"+fmt.Sprint(port), nil)
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("usage: plumnote <command> [options]")
-		fmt.Println("available commands: l[ist], a[dd], u[pdate], r[emove]")
+		fmt.Println("available commands: l[ist], a[dd], u[pdate], r[emove], d[sync]")
 		os.Exit(1)
 	}
 
@@ -402,6 +549,8 @@ func main() {
 		err = updateNote(args)
 	case "s", "settings":
 		err = setSettingsValue(args)
+	case "d", "dsync":
+		err = startDaemon(args)
 	default:
 		fmt.Printf("unknown command: %s\n", command)
 		os.Exit(1)
