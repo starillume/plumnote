@@ -15,7 +15,7 @@ import (
 
 type Note struct {
 	Id   uint32    `json:"id"`
-	Type string    `json:"type"`
+	Kind string    `json:"kind"`
 	Tags []string  `json:"tags,omitempty"`
 	Text string    `json:"text"`
 	Date time.Time `json:"date"`
@@ -54,7 +54,7 @@ func getNotesByTag(tag string, notes map[uint32]Note) map[uint32]Note {
 func getNotesByType(noteType string, notes map[uint32]Note) map[uint32]Note {
 	filtered := make(map[uint32]Note, 0)
 	for _, note := range notes {
-		if note.Type == noteType {
+		if note.Kind == noteType {
 			filtered[note.Id] = note
 		}
 	}
@@ -177,7 +177,7 @@ func addNote(args []string, path string) error {
 
 	notes[id] = Note{
 		Id:   id,
-		Type: noteType,
+		Kind: noteType,
 		Tags: tags,
 		Text: text,
 		Date: time.Now(),
@@ -203,7 +203,7 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 		filteredNotes = getNotesByTagsExact(tags, notes)
 	case "-d", "--date":
 	default:
-		return nil, errors.New("usage: plumnote l[ist] --[id, type, tag] <value>")
+		return nil, errors.New("usage: plumnote l[ist] --[id, kind, tag] <value>")
 	}
 
 	return filteredNotes, nil
@@ -212,7 +212,7 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 
 func listNotes(args []string, path string) error {
 	if len(args) == 1 || len(args) > 2 {
-		return errors.New("usage: plumnote l[ist] --[id, type, tags] <value>")
+		return errors.New("usage: plumnote l[ist] --[id, kind, tags] <value>")
 	}
 
 	notes, err := loadNotes(path)
@@ -236,7 +236,7 @@ func listNotes(args []string, path string) error {
 	for _, note := range notes {
 		fmt.Printf("id: %d | ", note.Id)
 		fmt.Print(note.Date.Format(format))
-		fmt.Printf("type: %s | ", note.Type)
+		fmt.Printf("kind: %s | ", note.Kind)
 		if len(note.Tags) > 0 {
 			fmt.Printf("tags: [%s]", strings.Join(note.Tags, ", "))
 		}
@@ -249,7 +249,7 @@ func listNotes(args []string, path string) error {
 
 func updateNote(args []string, path string) error {
 	if len(os.Args) < 3 {
-		return errors.New("usage: plumnote update <id> --[tags, text, type] <value>")
+		return errors.New("usage: plumnote update <id> --[tags, note, kind] <value>")
 	}
 
 	var id uint32
@@ -272,11 +272,11 @@ func updateNote(args []string, path string) error {
 	case "-t", "--tags":
 		note.Tags = strings.Split(updateValue, ",")
 	case "-k", "--kind":
-		note.Type = updateValue
+		note.Kind = updateValue
 	case "-n", "--note":
 		note.Text = updateValue
 	default:
-		return errors.New("usage: plumnote u[pdate] <id> --[tags, note, type] <value>")
+		return errors.New("usage: plumnote u[pdate] <id> --[tags, note, kind] <value>")
 	}
 
 	notes[id] = note
