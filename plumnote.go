@@ -15,6 +15,11 @@ import (
 )
 
 var NotesFile string
+var SettingsFile string
+var SettingsTemplate Settings = map[string]string{
+	"author": "",
+}
+
 
 type Note struct {
 	Id   uint32    `json:"id"`
@@ -22,9 +27,13 @@ type Note struct {
 	Tags []string  `json:"tags,omitempty"`
 	Text string    `json:"text"`
 	Date time.Time `json:"date"`
+	Author string `json:"author"`
 }
 
-func getNotesByTagsExact(tags []string, notes map[uint32]Note) map[uint32]Note {
+type Settings map[string]string
+type Notes map[uint32]Note
+
+func getNotesByTagsExact(tags []string, notes Notes) Notes {
 	filtered := notes
 	for _, tag := range tags {
 		filtered = getNotesByTag(tag, filtered)
@@ -33,8 +42,8 @@ func getNotesByTagsExact(tags []string, notes map[uint32]Note) map[uint32]Note {
 	return filtered
 }
 
-func getNotesByTags(tags []string, notes map[uint32]Note) map[uint32]Note {
-	filtered := make(map[uint32]Note, 0)
+func getNotesByTags(tags []string, notes Notes) Notes {
+	filtered := make(Notes, 0)
 	for _, tag := range tags {
 		tagNotes := getNotesByTag(tag, notes)
 		maps.Copy(filtered, tagNotes)
@@ -43,8 +52,8 @@ func getNotesByTags(tags []string, notes map[uint32]Note) map[uint32]Note {
 	return filtered
 }
 
-func getNotesByTag(tag string, notes map[uint32]Note) map[uint32]Note {
-	filtered := make(map[uint32]Note, 0)
+func getNotesByTag(tag string, notes Notes) Notes {
+	filtered := make(Notes, 0)
 	for _, note := range notes {
 		if slices.Contains(note.Tags, tag) {
 			filtered[note.Id] = note
@@ -54,8 +63,8 @@ func getNotesByTag(tag string, notes map[uint32]Note) map[uint32]Note {
 	return filtered
 }
 
-func getNotesByKind(noteKind string, notes map[uint32]Note) map[uint32]Note {
-	filtered := make(map[uint32]Note, 0)
+func getNotesByKind(noteKind string, notes Notes) Notes {
+	filtered := make(Notes, 0)
 	for _, note := range notes {
 		if note.Kind == noteKind {
 			filtered[note.Id] = note
@@ -65,8 +74,8 @@ func getNotesByKind(noteKind string, notes map[uint32]Note) map[uint32]Note {
 	return filtered
 }
 
-func getNotesByDate(dates []string, notes map[uint32]Note) (map[uint32]Note, error) {
-	filtered := make(map[uint32]Note, 0)
+func getNotesByDate(dates []string, notes Notes) (Notes, error) {
+	filtered := make(Notes, 0)
 	format := "02/01/2006" // DD/MM/YYYY
 	startDate, err := time.ParseInLocation(format, dates[0], time.Local)
 	if err != nil {
@@ -87,7 +96,7 @@ func getNotesByDate(dates []string, notes map[uint32]Note) (map[uint32]Note, err
 	return filtered, nil
 }
 
-func getHighestId(notes map[uint32]Note) int32 {
+func getHighestId(notes Notes) int32 {
 	var highest int32 = -1
 	for _, note := range notes {
 		if int32(note.Id) > highest {
@@ -102,7 +111,7 @@ func getNotesFilePath() string {
 	var dir string
 	switch runtime.GOOS {
 	case "windows":
-		dir = os.Getenv("%LOCALAPPDATA%")
+		dir, _ = os.UserConfigDir()
 	default:
 		dir = os.Getenv("XDG_DATA_HOME")
 		if dir == "" {
@@ -113,33 +122,37 @@ func getNotesFilePath() string {
 	return filepath.Join(dir, "plumnote", "notes.json")
 }
 
+func getSettingsFilePath() string {
+	dir, _ := os.UserConfigDir()
+	return filepath.Join(dir, "plumnote", "settings.json")
+}
+
 func ensureStorageExists(NotesFile string) error {
 	dir := filepath.Dir(NotesFile)
 	return os.MkdirAll(dir, 0755)
 }
 
-func loadNotes(NotesFile string) (map[uint32]Note, error) {
-	if err := ensureStorageExists(NotesFile); err != nil {
-		return nil, err
+func load[T any](filepath string, alocatedT T) (error) {
+	if err := ensureStorageExists(filepath); err != nil {
+		return err
 	}
-	data, err := os.ReadFile(NotesFile)
+	data, err := os.ReadFile(filepath)
 	if os.IsNotExist(err) {
-		return map[uint32]Note{}, nil
+		return nil
 	}
-	if err != nil {
-		return nil, err
-	}
-	var notes map[uint32]Note
-	err = json.Unmarshal(data, &notes)
-	return notes, err
-}
-
-func saveNotes(NotesFile string, notes map[uint32]Note) error {
-	data, err := json.MarshalIndent(notes, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(NotesFile, data, 0644)
+	err = json.Unmarshal(data, &alocatedT)
+	return err
+}
+
+func save[T any](filepath string, t T) error {
+	data, err := json.MarshalIndent(t, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath, data, 0644)
 }
 
 
@@ -159,8 +172,8 @@ func removeNote(args []string) error {
 			}
 		}
 	}
-
-	notes, err := loadNotes(NotesFile)
+	notes := make(Notes, 0)
+	err = load(NotesFile, notes)
 	if err != nil {
 		return err
 	}
@@ -170,7 +183,7 @@ func removeNote(args []string) error {
 			delete(notes, note.Id)
 		}
 	}
-	saveNotes(NotesFile, notes)
+	save(NotesFile, notes)
 
 	return nil
 }
@@ -200,7 +213,13 @@ func addNote(args []string) error {
 		return errors.New("you must provide --kind and the note text")
 	}
 
-	notes, err := loadNotes(NotesFile)
+	notes := make(Notes, 0)
+	err := load(NotesFile, notes)
+	if err != nil {
+		return err
+	}
+	settings := make(Settings, 0)
+	err = load(SettingsFile, settings)
 	if err != nil {
 		return err
 	}
@@ -213,14 +232,15 @@ func addNote(args []string) error {
 		Tags: tags,
 		Text: text,
 		Date: time.Now(),
+		Author: settings["author"],
 	}
 
-	return saveNotes(NotesFile, notes)
+	return save(NotesFile, notes)
 }
 
-func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[uint32]Note, error) {
+func filterNotes(filterMode string, filter string, notes Notes) (Notes, error) {
 	var err error
-	filteredNotes := make(map[uint32]Note, len(notes))
+	filteredNotes := make(Notes, len(notes))
 	switch filterMode {
 	case "-i", "--id":
 		var id int; id, err = strconv.Atoi(filter);
@@ -255,8 +275,8 @@ func listNotes(args []string) error {
 	if len(args) == 1 || len(args) > 2 {
 		return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date] <value>")
 	}
-
-	notes, err := loadNotes(NotesFile)
+	notes := make(Notes, 0)
+	err := load(NotesFile, notes)
 	if err != nil {
 		return err
 	}
@@ -281,6 +301,9 @@ func listNotes(args []string) error {
 		if len(note.Tags) > 0 {
 			fmt.Printf("tags: [%s]", strings.Join(note.Tags, ", "))
 		}
+		if note.Author != "" {
+			fmt.Printf("| by: %s", note.Author)
+		}
 		fmt.Printf("\n'%s'\n", note.Text)
 		fmt.Println()
 	}
@@ -301,7 +324,8 @@ func updateNote(args []string) error {
 		return err
 	}
 
-	notes, err := loadNotes(NotesFile)
+	notes := make(Notes, 0)
+	err = load(NotesFile, notes)
 	if err != nil {
 		return err
 	}
@@ -321,8 +345,32 @@ func updateNote(args []string) error {
 	}
 
 	notes[id] = note
-	saveNotes(NotesFile, notes)
+	save(NotesFile, notes)
 
+	return nil
+}
+
+func setSettingsValue(args []string) error {
+	if len(args) != 2 {
+		return errors.New("usage: plumnote s[ettings] <key> <value>")
+	}
+
+	fmt.Println(args)
+	
+	key := args[0]
+	value := args[1]
+	settings := make(Settings, 0)
+	err := load(SettingsFile, settings)
+	if err != nil {
+		return err
+	}
+	
+	if _, ok := SettingsTemplate[key]; !ok {
+		return errors.New("usage: plumnote s[ettings] <key> <value>")
+	}
+
+	settings[key] = value
+	save(SettingsFile, settings)
 	return nil
 }
 
@@ -336,7 +384,8 @@ func main() {
 	command := os.Args[1]
 	args := os.Args[2:]
 	NotesFile = getNotesFilePath()
-
+	SettingsFile = getSettingsFilePath()
+	
 	var err error
 	switch command {
 	case "a", "add":
@@ -347,6 +396,8 @@ func main() {
 		err = removeNote(args)
 	case "u", "update":
 		err = updateNote(args)
+	case "s", "settings":
+		err = setSettingsValue(args)
 	default:
 		fmt.Printf("unknown command: %s\n", command)
 		os.Exit(1)
