@@ -96,6 +96,17 @@ func getNotesByDate(dates []string, notes Notes) (Notes, error) {
 	return filtered, nil
 }
 
+func getNotesByAuthor(author string, notes Notes) Notes {
+	filtered := make(Notes, 0)
+	for _, note := range notes {
+		if note.Author == author {
+			filtered[note.Id] = note
+		}
+	}
+
+	return filtered
+}
+
 func getHighestId(notes Notes) int32 {
 	var highest int32 = -1
 	for _, note := range notes {
@@ -242,6 +253,8 @@ func filterNotes(filterMode string, filter string, notes Notes) (Notes, error) {
 	var err error
 	filteredNotes := make(Notes, len(notes))
 	switch filterMode {
+	case "-a", "--author":
+		filteredNotes = getNotesByAuthor(filter, notes)
 	case "-i", "--id":
 		var id int; id, err = strconv.Atoi(filter);
 		filteredNotes[0] = notes[uint32(id)]
@@ -260,7 +273,7 @@ func filterNotes(filterMode string, filter string, notes Notes) (Notes, error) {
 		}
 		filteredNotes, err = getNotesByDate(dates, notes)
 	default:
-		return nil, errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date] <value>")
+		return nil, errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date, author] <value>")
 	}
 
 	if err != nil {
@@ -273,7 +286,7 @@ func filterNotes(filterMode string, filter string, notes Notes) (Notes, error) {
 
 func listNotes(args []string) error {
 	if len(args) == 1 || len(args) > 2 {
-		return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date] <value>")
+		return errors.New("usage: plumnote l[ist] --[id, kind, tags, exact-tags, date, author] <value>")
 	}
 	notes := make(Notes, 0)
 	err := load(NotesFile, notes)
