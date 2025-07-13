@@ -51,10 +51,10 @@ func getNotesByTag(tag string, notes map[uint32]Note) map[uint32]Note {
 	return filtered
 }
 
-func getNotesByType(noteType string, notes map[uint32]Note) map[uint32]Note {
+func getNotesByKind(noteKind string, notes map[uint32]Note) map[uint32]Note {
 	filtered := make(map[uint32]Note, 0)
 	for _, note := range notes {
-		if note.Kind == noteType {
+		if note.Kind == noteKind {
 			filtered[note.Id] = note
 		}
 	}
@@ -148,13 +148,13 @@ func addNote(args []string, path string) error {
 		return errors.New("usage: plumnote a[dd] --kind <kind> [--tags <tags>] \"note text\"")
 	}
 
-	var noteType string
+	var noteKind string
 	var tags []string
 	var text string
 
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-k" || args[i] == "--kind" && i+1 < len(args) {
-			noteType = args[i+1]
+			noteKind = args[i+1]
 			i++
 		} else if args[i] == "-t" || args[i] == "--tags" && i+1 < len(args) {
 			tags = strings.Split(args[i+1], ",")
@@ -164,7 +164,7 @@ func addNote(args []string, path string) error {
 		}
 	}
 
-	if noteType == "" || text == "" {
+	if noteKind == "" || text == "" {
 		return errors.New("you must provide --kind and the note text")
 	}
 
@@ -177,7 +177,7 @@ func addNote(args []string, path string) error {
 
 	notes[id] = Note{
 		Id:   id,
-		Kind: noteType,
+		Kind: noteKind,
 		Tags: tags,
 		Text: text,
 		Date: time.Now(),
@@ -194,7 +194,7 @@ func filterNotes(filterMode string, filter string, notes map[uint32]Note) (map[u
 		var id int; if id, err = strconv.Atoi(filter); err != nil { return nil, err }
 		filteredNotes[0] = notes[uint32(id)]
 	case "-k", "--kind":
-		filteredNotes = getNotesByType(filter, notes)
+		filteredNotes = getNotesByKind(filter, notes)
 	case "-t", "--tags":
 		tags := strings.Split(filter, ",")
 		filteredNotes = getNotesByTags(tags, notes)
@@ -248,7 +248,7 @@ func listNotes(args []string, path string) error {
 }
 
 func updateNote(args []string, path string) error {
-	if len(os.Args) < 3 {
+	if len(args) < 3 {
 		return errors.New("usage: plumnote update <id> --[tags, note, kind] <value>")
 	}
 
