@@ -428,7 +428,7 @@ func notesReceiveToSync(nts []NoteToSync) error {
 	return nil
 }
 
-func notesToSync() ([]byte, error) {
+func notesToSync(saveNotes bool) ([]byte, error) {
 	notes := make(Notes, 0)
 	err := load(NotesFile, notes)
 	if err != nil {
@@ -457,7 +457,9 @@ func notesToSync() ([]byte, error) {
 		return nil, err
 	}
 
-	save(NotesFile, notes)
+	if saveNotes {
+		save(NotesFile, notes)
+	}
 
 	return toSyncJson, nil
 }
@@ -498,7 +500,7 @@ func syncHandlerFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notesToSend, err := notesToSync()
+	notesToSend, err := notesToSync(true)
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintf(w, err.Error())
@@ -552,7 +554,7 @@ func sendRequest(args []string) error {
 
 	ip, port = split[0], split[1]
 	url := fmt.Sprintf("http://%s:%s/sync", ip, port)
-	notesToSend, err := notesToSync()
+	notesToSend, err := notesToSync(false)
 	if err != nil {
 		return err
 	}
