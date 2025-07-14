@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"os"
@@ -18,7 +20,8 @@ import (
 var NotesFile string
 var SettingsFile string
 var SettingsTemplate Settings = map[string]string{
-	"author": "",
+	"author":     "",
+	"syncserver": "",
 }
 
 type Note struct {
@@ -373,8 +376,6 @@ func setSettingsValue(args []string) error {
 		return errors.New("usage: plumnote s[ettings] <key> <value>")
 	}
 
-	fmt.Println(args)
-
 	key := args[0]
 	value := args[1]
 	settings := make(Settings, 0)
@@ -427,17 +428,18 @@ func notesReceiveToSync(nts []NoteToSync) error {
 	return nil
 }
 
-func notesToSync() (string, error) {
+func notesToSync() ([]byte, error) {
 	notes := make(Notes, 0)
 	err := load(NotesFile, notes)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	toSync := make([]NoteToSync, 0)
 	for _, n := range notes {
 		if !n.Synced {
 			ns := NoteToSync{
+				Id:     n.Id,
 				Kind:   n.Kind,
 				Tags:   n.Tags,
 				Text:   n.Text,
@@ -452,12 +454,12 @@ func notesToSync() (string, error) {
 
 	toSyncJson, err := json.MarshalIndent(toSync, "", "  ")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	save(NotesFile, notes)
 
-	return string(toSyncJson), nil
+	return toSyncJson, nil
 }
 
 func syncHandlerFunc(w http.ResponseWriter, r *http.Request) {
@@ -503,7 +505,8 @@ func syncHandlerFunc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, notesToSend)
+	fmt.Fprintf(w, string(notesToSend))
+	fmt.Println("notes synced!")
 }
 
 func startDaemon(args []string) error {
@@ -521,14 +524,68 @@ func startDaemon(args []string) error {
 	}
 
 	http.HandleFunc("/sync", syncHandlerFunc)
-
+	fmt.Printf("listening in port %d...\n", port)
 	return http.ListenAndServe(":"+fmt.Sprint(port), nil)
+}
+
+func sendRequest(args []string) error {
+	if len(args) > 1 {
+		return errors.New("usage: plumnote p[sync] [ip:port]")
+	}
+	var ip, port string
+	var split []string
+	if len(args) == 1 {
+		split = strings.Split(args[0], ":")
+	} else {
+		settings := make(Settings, 0)
+		err := load(SettingsFile, settings)
+		if err != nil {
+			return err
+		}
+		var ok bool
+		var syncserver string
+		if syncserver, ok = settings["syncserver"]; !ok {
+			return errors.New("settings.syncserver value not found. please set it with plumnote s syncserver [ip:port].")
+		}
+		split = strings.Split(syncserver, ":")
+	}
+
+	ip, port = split[0], split[1]
+	url := fmt.Sprintf("http://%s:%s/sync", ip, port)
+	notesToSend, err := notesToSync()
+	if err != nil {
+		return err
+	}
+
+	res, err := http.Post(url, "application/json", bytes.NewBuffer(notesToSend))
+	if err != nil {
+		return err
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	notesReceived := make([]NoteToSync, 0)
+	if err := json.Unmarshal(body, &notesReceived); err != nil {
+		return err
+	}
+
+	err = notesReceiveToSync(notesReceived)
+	if err != nil {
+		return err
+	}
+	
+	fmt.Println("notes synced!")
+	return nil
 }
 
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("usage: plumnote <command> [options]")
-		fmt.Println("available commands: l[ist], a[dd], u[pdate], r[emove], d[sync]")
+		fmt.Println("available commands: l[ist], a[dd], u[pdate], r[emove], s[ettings], d[sync], p[sync]")
 		os.Exit(1)
 	}
 
@@ -551,6 +608,8 @@ func main() {
 		err = setSettingsValue(args)
 	case "d", "dsync":
 		err = startDaemon(args)
+	case "p", "psync":
+		err = sendRequest(args)
 	default:
 		fmt.Printf("unknown command: %s\n", command)
 		os.Exit(1)
