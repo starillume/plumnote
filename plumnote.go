@@ -227,7 +227,7 @@ func addNote(args []string) error {
 		return err
 	}
 
-	id := time.Now().Unix()
+	id := time.Now().UnixMilli()
 	notes[id] = Note{
 		Id:     id,
 		Kind:   noteKind,
