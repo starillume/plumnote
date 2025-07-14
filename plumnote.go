@@ -558,8 +558,11 @@ func sendRequest(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	res, err := http.Post(url, "application/json", bytes.NewBuffer(notesToSend))
+	
+	client := http.Client{
+		Timeout: 2 * time.Second + time.Millisecond * 500,
+	}
+	res, err := client.Post(url, "application/json", bytes.NewBuffer(notesToSend))
 	if err != nil {
 		return err
 	}
