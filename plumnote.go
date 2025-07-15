@@ -473,30 +473,39 @@ func syncHandlerFunc(w http.ResponseWriter, r *http.Request) {
 
 	if r.ContentLength == -1 {
 		w.WriteHeader(400)
-		fmt.Fprintf(w, "ta errado ai fio")
+		fmt.Fprintf(w, "invalid content length")
+		fmt.Printf("invalid content length")
 		return
 	}
 
 	if r.ContentLength > 1000000000 { // 1gb
 		w.WriteHeader(400)
-		fmt.Fprintf(w, "pode não")
+		fmt.Fprintf(w, "request too large")
+		fmt.Printf("request too large")
 		return
 	}
 
-	body := make([]byte, r.ContentLength)
-
-	r.Body.Read(body)
+	body, err := io.ReadAll(r.Body);
+	if err != nil {
+		w.WriteHeader(400)
+		fmt.Fprintf(w, err.Error())
+		fmt.Printf("readAll: %s", err.Error())
+		return
+	}
+	defer r.Body.Close()
 
 	var notes []NoteToSync
 	if err := json.Unmarshal(body, &notes); err != nil {
 		w.WriteHeader(400)
 		fmt.Fprintf(w, err.Error())
+		fmt.Printf("Unmarshal: %s", err.Error())
 		return
 	}
 
 	if err := notesReceiveToSync(notes); err != nil {
 		w.WriteHeader(400)
 		fmt.Fprintf(w, err.Error())
+		fmt.Printf("notesReceiveToSync: %s", err.Error())
 		return
 	}
 
@@ -504,6 +513,7 @@ func syncHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintf(w, err.Error())
+		fmt.Printf("notesToSync: %s", err.Error())
 		return
 	}
 
