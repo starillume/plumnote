@@ -577,6 +577,10 @@ func sendRequest(args []string) error {
 		return err
 	}
 
+	if res.StatusCode != 200 {
+		return errors.New("status code not ok: " + res.Status)
+	}
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return err
@@ -589,6 +593,11 @@ func sendRequest(args []string) error {
 	}
 
 	err = notesReceiveToSync(notesReceived)
+	if err != nil {
+		return err
+	}
+
+	_, err = notesToSync(true)
 	if err != nil {
 		return err
 	}
