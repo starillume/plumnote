@@ -572,7 +572,9 @@ func sendRequest(args []string) error {
 	client := http.Client{
 		Timeout: 2 * time.Second + time.Millisecond * 500,
 	}
-	res, err := client.Post(url, "application/json", bytes.NewBuffer(notesToSend))
+	buffer := bytes.NewBuffer(make([]byte, 0))
+	json.Compact(buffer, notesToSend)
+	res, err := client.Post(url, "application/json", buffer)
 	if err != nil {
 		return err
 	}
